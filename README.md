@@ -93,6 +93,10 @@ node test\selection-reader.test.mjs
 
 安装：在本机 DSH profile 中由会话调用 `plugin_manager(action: install_bundle, target: <本目录绝对路径>)`；卸载：`plugin_manager(action: remove_bundle, target: "@local/dsh-selection-reader")`。
 
+## 仓库
+
+<https://github.com/ShiroiSkyy/dsh-selection-reader>
+
 ## 已知限制
 
 - 历史与设置存在浏览器本地，不跨设备同步；自定义 API 的 Key 也只保存在本机浏览器。

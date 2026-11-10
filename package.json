@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "description": "划词解读：在对话里划中一段文字，点「解读」由 AI 结合本轮对话解释其含义，并保留解读历史。",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ShiroiSkyy/dsh-selection-reader.git"
+  },
+  "homepage": "https://github.com/ShiroiSkyy/dsh-selection-reader",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
