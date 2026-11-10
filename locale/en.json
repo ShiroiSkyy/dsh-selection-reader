@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Selection reader",
+    "description": "Select text in a conversation and click Interpret to have AI explain it in the current context, with a searchable history."
+  }
+}

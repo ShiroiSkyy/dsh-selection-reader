@@ -1,0 +1,4 @@
+# 划词解读插件：Host 半边只挂 HTTP 接口，全部界面在 ./client.js。
+- insert:
+    - id: selection-reader
+      name: '@local/dsh-selection-reader'
