@@ -1,85 +1,137 @@
-# 划词解读（DSH 插件）
+<p align="center">
+  <img src="icon.svg" width="88" height="88" alt="Selection Reader icon" />
+</p>
 
-在对话里划中一段文字，点「解读」，由 AI 结合**本轮对话**解释它在这里是什么意思；每次解读会留下一条历史，随时可以查看、跳回原对话。
+<h1 align="center">Selection Reader · 划词解读</h1>
 
-## 界面
+<p align="center">
+  <b>Select any text in a DeepSeek Harness conversation. Get an explanation that fits the current context.</b>
+</p>
 
-1. **划词浮层**
-   选中对话里的文字后，官方浮层里出现「引用文本」；本插件在它右侧并排、同高显示「解读」。点「解读」会立即在原文高亮，并在选中位置旁弹出解读窗口。
-2. **解读窗口**
-   - 可拖动：按住标题栏可以把窗口拖到任意位置，拖动范围限制在可视区域内；
-   - 加载中：骨架屏 + 「正在解读…」，`aria-busy` 标记忙碌状态；
-   - 成功：把模型输出按「此处含义 / 依据 / 补充」拆成分段卡片，段内自动高亮所选文本，不再是一整块纯文本；窗口里可以复制完整解读，底部显示实际使用的模型；
-   - 失败：错误说明 + 「重试」按钮，高亮保留，点高亮可以回到这个失败态重试。
-3. **原文高亮**
-   - 高亮用 DOM 包裹实现，在原文里直接可见；
-   - 点击高亮：在点击位置旁边重新打开当时的解读；
-   - 右键高亮：「删除解读」，同时删除高亮和这条历史记录。
-4. **插件页（左侧栏「划词解读」图标）**
-   - **解读历史**：以解读文本为标题，按时间倒序列出；顶部可搜索解读文本和对话标题；点任意一条打开详情，详情同样按分段卡片展示，并可以复制或跳回原对话。
-   - **插件设置**：全部选项集中在这里，改完点右下角「保存设置」才会生效；有未保存的修改时保存条会高亮提示，也可以「撤销修改」。
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a>
+  <br />
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-blue.svg" />
+  <img alt="version" src="https://img.shields.io/badge/version-1.1.0-green.svg" />
+  <img alt="platform" src="https://img.shields.io/badge/platform-DeepSeek%20Harness-4d6bfe.svg" />
+</p>
 
-## 行为规则
+---
 
-- 历史记录以「对话 + 轮次」为唯一坐标，同一坐标只保留最新一条。
-- 在同一轮次里再次划中**同样的文本**：直接显示已有解读，不调用模型，不新增记录。
-- 在同一轮次里划中**不同的文本**（包括有重叠的选择）：重新解读并覆盖该轮次的记录。
-- 删除高亮会同时删除对应历史记录。
-- 历史条数超过上限时，先按「对话 + 轮次」覆盖，再删除最旧的记录。
-- 单次解读有字数上限，超出时只提示、不发起解读。
+A plugin for DeepSeek Harness (DSH) that explains selected words or passages **in the context of the current conversation** — not as a dictionary lookup, but as "what does this mean here".
 
-## 设置项
+Terminology such as `SP-API`, `LGPD`, `PIPL`, platform policies or `SaaS` is hard to look up without losing your place. Selection Reader adds an **Interpret** button next to the built-in Quote action, opens a draggable result window, shows a structured explanation, and keeps a searchable history that can jump back to the original conversation.
 
-| 分组 | 选项 | 默认 |
+## Features
+
+- **Context-aware interpretation** — the selected text and the current turn are sent together, so the model explains what the passage means in this conversation.
+- **Structured result, not a wall of text** — the reply is split into "Meaning here / Evidence / Notes" cards, with the selected term highlighted inline.
+- **Readable, movable window** — draggable header, skeleton loading state, retryable error state, copy button, and the model actually used.
+- **Persistent highlight** — selections are highlighted in the chat. Click a highlight to reopen the interpretation; right-click to delete it (which also removes its history entry).
+- **History that goes somewhere** — entries are titled by the interpreted text, searchable by text or conversation title, and can jump back to the original message.
+- **Explicit settings save** — edit settings in a draft, then click **Save settings**; unsaved changes are marked, and Discard changes resets the draft.
+- **Model choices** — follow the current conversation's model, pick a specific Harness model, or use any **OpenAI-compatible** third-party API (endpoint, API key, model) with a built-in connection test.
+- **Sensible defaults** — same-conversation same-turn text is cached (no second model call); reinterpreting the same turn with different text overwrites that turn's entry; history has a configurable cap.
+
+## Requirements
+
+- DeepSeek Harness (DSH) desktop `0.2.2-rc.1` or a compatible profile with plugin-bundle and web-server support.
+- Git, to clone the repository.
+- Node.js is only needed if you want to run the checks or tests.
+
+## Installation
+
+The plugin is a DSH **bundle**: a Host half that exposes local HTTP routes and a browser half that renders the UI.
+
+### 1. Clone
+
+```powershell
+git clone https://github.com/ShiroiSkyy/dsh-selection-reader.git
+```
+
+### 2. Install into your DSH profile
+
+In a DSH session, ask the agent to install the bundle from the cloned directory, for example:
+
+> Install this DSH plugin bundle: `D:\path\to\dsh-selection-reader` (use `plugin_manager` with `install_bundle`).
+
+The agent calls `plugin_manager(action: "install_bundle", target: "<absolute path>")`. The plugin then becomes enabled in your profile; the tool writes the profile entry itself, so do not edit the profile `cordis.patch.yml` by hand.
+
+### 3. Refresh the page
+
+Reload the Harness Web GUI once. A **划词解读 / Selection Reader** icon appears at the top of the sidebar.
+
+### Upgrade
+
+```powershell
+cd dsh-selection-reader
+git pull
+```
+
+Reinstall the bundle (or restart DSH) so the new Host half loads.
+
+### Uninstall
+
+Ask the agent to remove the bundle:
+
+> Remove the DSH bundle `@local/dsh-selection-reader` (`plugin_manager` with `remove_bundle`).
+
+## Usage
+
+1. Select text in a finished assistant reply or a displayed user message.
+2. In the floating menu, click **解读** next to **引用文本**.
+3. The selection is highlighted immediately, and the result window opens near it. Wait for the skeleton to resolve into the structured explanation.
+4. Click the highlight later to reopen the interpretation; right-click it and choose **删除解读** to remove both the highlight and the history entry.
+5. Open the sidebar icon to browse **History** and **Settings**.
+
+### History
+
+- Entries are stored per conversation and per turn. Reinterpreting identical text in the same turn reuses the cached result.
+- Interpreting different text in the same turn replaces that turn's entry (the previous one is overwritten, matching "show only the latest interpretation for this turn").
+- The list can be searched by interpreted text or conversation title. The detail view can copy the result or return to the original conversation; if that conversation no longer exists, a notice is shown instead of an error page.
+
+### Settings
+
+| Section | Option | Default |
 | --- | --- | --- |
-| 解读 | 解读提示词（可编辑、可恢复默认） | 内置中文提示词 |
-| 解读 | 模型：跟随当前会话 / 指定模型 / 自定义 API | 跟随当前会话 |
-| 解读 | 自定义 API：接口地址、API Key、模型名，可「测试连接」 | 空 |
-| 解读 | 单次解读字数上限 | 500 |
-| 划词与显示 | 划词菜单显示「解读」 | 开 |
-| 划词与显示 | 高亮样式（浅色底 / 下划线） | 浅色底 |
-| 划词与显示 | 高亮颜色（跟随主题 / 暖黄 / 浅蓝） | 跟随主题 |
-| 历史 | 历史记录上限 | 200 条 |
-| 历史 | 清空历史（二次确认） | — |
+| Interpretation | Interpretation prompt (editable, restore default) | built-in Chinese prompt |
+| Interpretation | Model: follow conversation / specific model / custom API | follow conversation |
+| Interpretation | Custom API: endpoint, API key, model; **Test connection** | empty |
+| Interpretation | Maximum characters per interpretation | 500 |
+| Selection & display | Show **解读** in the selection menu | on |
+| Selection & display | Highlight style: soft fill / underline | soft fill |
+| Selection & display | Highlight color: theme / amber / blue | theme |
+| History | History limit | 200 entries |
+| History | Clear history (two-step confirmation) | — |
 
-设置修改先留在草稿里，点「保存设置」写入并立即生效；「撤销修改」丢弃草稿。切到「解读历史」再切回来，未保存的草稿仍在。
+Settings are saved explicitly with **Save settings**. Draft changes survive switching between History and Settings; **Discard changes** restores saved values.
 
-设置和历史都保存在当前浏览器的 localStorage：`selection-reader:settings:v1`、`selection-reader:history:v1`。换浏览器或清站点数据后会重新开始。
+### Custom API
 
-## 文件结构
+- Works with services that expose an OpenAI-compatible `POST {base}/chat/completions` endpoint. The endpoint may stop at `/v1` or point at the full path.
+- **Test connection** sends a minimal request and reports success plus latency, or the provider's error message.
+- The API key is stored only in your browser's `localStorage` and is sent to the local DSH Host when interpreting; it is not written into the DSH profile or any repository.
+- Non-OpenAI-compatible protocols (Anthropic native, Gemini native, …) are not supported yet.
 
-| 文件 | 作用 |
+## Data & privacy
+
+- Settings and history live in the browser: `selection-reader:settings:v1` and `selection-reader:history:v1`. They are per browser profile and are not synced.
+- Interpreted text and the current turn are sent to the configured model endpoint. With a custom API, they go to the endpoint you configured.
+- No telemetry is collected. `GET /selection-reader/api/diag` only exposes counters and the client build marker.
+- Host routes accept same-origin JSON requests only (cross-site `Origin` and non-JSON `POST`s are rejected), so an unrelated web page cannot drive the interpretation endpoint or use it as a proxy.
+
+## How it works
+
+| Half | Responsibility |
 | --- | --- |
-| `package.json` | 包清单、`dsh.bundle` 补丁入口、`dsh.client` 浏览器端入口 |
-| `cordis.patch.yml` | 向 profile 插入一条 Host 插件行 |
-| `index.js` | Host 半边：`/selection-reader/api/*` 接口，调用 `ctx.llm` 完成解读 |
-| `client.js` | 浏览器端：划词浮层、高亮、解读窗口、历史与设置页 |
-| `locale/{zh,en}.json` | 插件管理页显示的标题与描述 |
-| `icon.svg` | 插件图标 |
-| `test/selection-reader.test.mjs` | 纯逻辑单测（缓存、覆盖、上限、搜索、命中） |
+| Host (`index.js`) | Local HTTP API: `POST /interpret`, `POST /custom/test`, `GET /models`, `GET /health`, `GET/POST /diag`. Calls `ctx.llm` for Harness models or an OpenAI-compatible endpoint for custom APIs. |
+| Client (`client.js`) | Floating Interpret button, result window, DOM-based highlights, history and settings pages. Uses `sidebar.panellist`, `main`, `shell.overlay` and `conversation.input.dock` slots. |
 
-## Host 接口
+- The Interpret button is positioned next to the official Quote pill by measuring its rectangle; the official interaction slot is not modified, so DSH starts normally.
+- Highlights are real `<mark data-si-record>` elements. A `MutationObserver` re-applies them after chat re-renders.
+- Pure logic (cache, overwrite, history cap, search, section parsing, term splitting) is unit-tested by extracting a marked region from `client.js`.
 
-- `POST /selection-reader/api/interpret`：`{text, context, prompt, provider?, model?}` → `{ok, text, model}`。
-- `GET /selection-reader/api/models`：可用的服务商与模型（按 60 秒缓存）。
-- `GET /selection-reader/api/health`：`{ok, llm, defaultSelection}`。
-
-模型解析顺序：请求里显式指定的 provider/model → Harness 默认模型选择 → 内置 `deepseek-account/deepseek-flash`。
-
-## 实现说明
-
-- 「引用文本」浮层由官方 `message-quotes` 注册，本插件不改动它；插件监听划词浮层出现，把自己的「解读」按钮定位在它右侧并排显示。这样不会和官方插件抢同一个交互槽位，避免启动冲突。
-- 「解读」按钮在 `pointerdown` 时直接触发解读：官方浮层会在 pointerdown 时收起，如果等 `click` 再执行，按钮可能已经因为浮层消失而卸载，表现为「点了没反应」。用 pointerdown 触发并配合 350ms 去抖后，点击稳定性不再依赖浮层存活。
-- 解读内容先解析再渲染：识别「此处含义 / 依据 / 补充」及 Markdown、加粗、行内标题等写法，拆成分段卡片；解析失败时退回整段文本，不会丢内容。
-- 高亮用 DOM mark 包裹（`mark[data-si-record]`）实现，可见、可点击、可右键；消息重新渲染后由 MutationObserver 自动重新套用。点击高亮时用 mark 自身的矩形定位窗口，避免窗口跑到左上角。
-- 「解读」按钮与官方「引用文本」胶囊按同一矩形对齐：读取胶囊按钮的 `getBoundingClientRect()` 后同高、同顶、右移 6px 并排显示。
-- 解读内容先解析再渲染：识别「此处含义 / 依据 / 补充」及 Markdown、加粗、行内标题等写法，拆成分段卡片；解析失败时退回整段文本，不会丢内容。
-- 模型列表读取带 12 秒超时和「重试」按钮，不会一直停在「正在读取模型列表…」。
-- 自定义 API 走 Host 侧 `/custom/test` 与 `/interpret`：按 OpenAI 兼容的 `chat/completions` 协议请求，API Key 只保存在本机浏览器，不写入 Host 配置。
-- 锚点保存为「会话 + 轮次 + 消息节点 key + 文本偏移」；消息被重新渲染后按节点 key 和偏移重新生成 Range，文本对不上时静默跳过，不影响历史。
-- 选中的本轮对话文本直接从对话 DOM 的 `data-text-interaction-source` 节点里提取，只取这一轮。
-
-## 开发与验证
+## Development
 
 ```powershell
 node --check client.js
@@ -87,23 +139,37 @@ node --check index.js
 node test\selection-reader.test.mjs
 ```
 
-安装后已确认：Host 行 `include:selection-reader` active，`/selection-reader/api/health` 与 `/selection-reader/api/models` 返回 200，`ctx.llm` 可用；Client 端四个席位（`sidebar.panellist#selection-reader`、`main#selection-reader`、`shell.overlay#selection-reader-overlay`、`conversation.input.dock#selection-reader-session`）均为 active，官方 `message-quotes` 也正常 active。界面交互（浮层、高亮、弹窗、历史页）需要在浏览器里实际点击验证；本环境没有浏览器控制能力，未做截图级验证。
+The test file extracts the marked pure-logic region from `client.js`, so the same source stays testable without a build step.
 
-> 早先版本曾尝试接管官方「引用文本」的交互槽位，会让 `dsh-message-quotes` 在启动时激活失败导致 DSH 无法进入界面；现已改成「浮层右侧并排按钮」，不再占用官方槽位。
+For development, install the working directory as a bundle and reload the page after changes. Host changes require restarting the bundle entry (ask the agent to toggle the bundle, or restart DSH).
 
-安装：在本机 DSH profile 中由会话调用 `plugin_manager(action: install_bundle, target: <本目录绝对路径>)`；卸载：`plugin_manager(action: remove_bundle, target: "@local/dsh-selection-reader")`。
+### Project structure
 
-## 仓库
+| File | Purpose |
+| --- | --- |
+| `index.js` | Host half: HTTP routes, `ctx.llm` / OpenAI-compatible calls |
+| `client.js` | Browser half: UI, selection handling, highlights, storage |
+| `cordis.patch.yml` | Inserts the plugin row into the DSH profile |
+| `package.json` | Bundle manifest, `dsh.bundle` and `dsh.client` declarations |
+| `locale/` | Plugin Manager title and description |
+| `icon.svg` | Plugin icon |
+| `test/` | Pure-logic unit tests |
 
-<https://github.com/ShiroiSkyy/dsh-selection-reader>
+## Limitations
 
-## 已知限制
+- Custom APIs must be OpenAI-compatible.
+- History and settings are local to one browser profile.
+- Only finished assistant text and displayed user messages can be selected; streaming text is not interactive.
+- Read-only or unaddressable sessions do not show the official selection surface, so the Interpret button is unavailable there.
+- Highlight marks live inside React-managed message content; if the host re-renders a message, marks are re-applied on the next DOM change (there can be a brief flicker).
+- The dragged window position is not persisted; reopening places the window next to the selection again.
+- Interpretation consumes model quota (reasoning is turned off, output is capped around 800 tokens).
 
-- 历史与设置存在浏览器本地，不跨设备同步；自定义 API 的 Key 也只保存在本机浏览器。
-- 自定义 API 只支持 OpenAI 兼容的 `/chat/completions` 协议；非兼容接口请等待后续适配。
-- DOM mark 包裹会改动原文的文本节点；如果宿主版本的消息渲染策略变化导致标记被清除，插件会在下一次 DOM 变化时自动重新套用。
-- 只对已完成的助手文本和已展示的用户消息生效；流式输出中的文字不能划词。
-- 「解读」按钮依赖官方划词浮层出现；只读或不可写会话里官方浮层不出现，解读按钮也不会出现。
-- 历史条目在原文被删除后仍会保留；点击「回到对话」才做检查，找不到时提示「原对话已不存在」。
-- 解读窗口的拖动位置只在本次打开期间有效；重新打开会回到所选文字旁边的默认位置。
-- 解读会消耗模型额度，默认关闭推理（`reasoningEffort: off`），单次最多输出约 800 tokens。
+## Changelog
+
+- **1.1.0** — explicit save bar and draft settings, custom OpenAI-compatible API with connection test, draggable result window, structured result cards, improved highlights and button alignment, model-list loading fix.
+- **1.0.0** — initial release: selection interpretation, highlights, history, search, jump back, settings.
+
+## License
+
+[MIT](LICENSE) © 2026 ShiroiSkyy

@@ -311,12 +311,22 @@ window.__ModuleLoader__.load({
       uiStore.set({ ...current, popup: null })
     }
 
+    /** 只更新仍属于这次请求的窗口，避免并发解读时旧结果覆盖新窗口。 */
+    function updatePopupIfCurrent(pendingId, patch) {
+      const current = uiStore.get()
+      const popup = current.popup
+      if (!popup) return
+      if (popup.pendingId !== pendingId && popup.id !== pendingId) return
+      updatePopup(patch)
+    }
+
     function setCurrentSession(sessionId, sessionTitle) {
       const next = sessionId || null
       const nextTitle = sessionTitle || ''
       if (currentSessionId === next && currentSessionTitle === nextTitle) return
       currentSessionId = next
       currentSessionTitle = nextTitle
+      lastApply = { signature: '', at: 0, incomplete: false }
       scheduleHighlightSync()
     }
 
@@ -442,6 +452,7 @@ window.__ModuleLoader__.load({
     // ---------- 高亮：用 DOM mark 包裹（可见、可点击、可右键） ----------
 
     let lastMarkStats = { records: 0, marks: 0, at: 0 }
+    let lastApply = { signature: '', at: 0, incomplete: false }
 
     function markStyleToken() {
       const settings = settingsStore.get()
@@ -573,6 +584,7 @@ window.__ModuleLoader__.load({
       if (!currentSessionId) {
         clearMarks()
         lastMarkStats = { records: 0, marks: 0, at: Date.now() }
+        lastApply = { signature: '', at: 0, incomplete: false }
         return
       }
       const records = renderedRecords()
@@ -580,6 +592,18 @@ window.__ModuleLoader__.load({
       if (records.length === 0) {
         if (existing.length) clearMarks()
         lastMarkStats = { records: 0, marks: 0, at: Date.now() }
+        lastApply = { signature: '', at: 0, incomplete: false }
+        return
+      }
+      const signature = records
+        .map((record) => record.id)
+        .sort()
+        .join('|')
+      if (
+        lastApply.incomplete &&
+        lastApply.signature === signature &&
+        Date.now() - lastApply.at < 2000
+      ) {
         return
       }
       const existingIds = new Set()
@@ -609,6 +633,7 @@ window.__ModuleLoader__.load({
           if (mark.getAttribute('data-si-style') !== token) mark.setAttribute('data-si-style', token)
         }
         lastMarkStats = { records: records.length, marks: existing.length, at: Date.now() }
+        lastApply = { signature: signature, at: 0, incomplete: false }
         return
       }
       clearMarks()
@@ -620,6 +645,7 @@ window.__ModuleLoader__.load({
         wrapRangeWithMark(found.range, record, token)
         made += 1
       }
+      lastApply = { signature: signature, at: Date.now(), incomplete: made < records.length }
       lastMarkStats = { records: records.length, marks: made, at: Date.now() }
     }
 
@@ -727,7 +753,7 @@ window.__ModuleLoader__.load({
     }
 
     /** 测试第三方接口是否可用（Host 侧发一个最小请求）。 */
-    async function requestCustomTest(t, config) {
+    async function requestCustomTest(config) {
       const response = await fetch(API + '/custom/test', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -829,7 +855,7 @@ window.__ModuleLoader__.load({
         pendingMap.delete(pendingId)
         historyStore.set(upsertInterpretation(historyStore.get(), record, settingsStore.get().historyLimit))
         scheduleHighlightSync()
-        updatePopup({ status: 'done', result: outcome.text, model: outcome.model || '', recordId: record.id, pendingId: null, error: '' })
+        updatePopupIfCurrent(pendingId, { status: 'done', result: outcome.text, model: outcome.model || '', recordId: record.id, pendingId: null, error: '' })
       } catch (error) {
         const pending = pendingMap.get(pendingId)
         if (pending) {
@@ -838,7 +864,7 @@ window.__ModuleLoader__.load({
           pendingMap.set(pendingId, pending)
         }
         scheduleHighlightSync()
-        updatePopup({
+        updatePopupIfCurrent(pendingId, {
           status: 'error',
           error: String(error && error.message ? error.message : error),
           pendingId: pendingId,
@@ -1026,7 +1052,6 @@ window.__ModuleLoader__.load({
       'settings.clear': 'Clear history',
       'settings.clearConfirm': 'Confirm clear',
       'settings.cleared': 'History cleared',
-      'settings.autosave': 'Changes apply immediately; no save button',
       'settings.save': 'Save settings',
       'settings.revert': 'Discard changes',
       'settings.saved': 'Settings saved',
@@ -1814,7 +1839,7 @@ window.__ModuleLoader__.load({
         }
         setCustomTest({ status: 'testing', message: '', latencyMs: 0 })
         try {
-          const result = await requestCustomTest(t, {
+          const result = await requestCustomTest({
             baseURL: value.customBaseUrl,
             apiKey: value.customApiKey,
             model: value.customModel,
@@ -2521,40 +2546,21 @@ window.__ModuleLoader__.load({
         document.addEventListener('click', onClick, true)
         document.addEventListener('contextmenu', onContextMenu, true)
 
-        // 高亮排查用：有记录时定期把渲染统计送到 Host（GET /diag 可读）。
+        // 诊断用：只上报计数和版本，不上报任何对话文本或会话 id（GET /diag 可读）。
         const diagTimer = setInterval(() => {
           const records = renderedRecords()
           if (records.length === 0) return
-          let markSample = null
-          try {
-            const sample = document.querySelector('mark[data-si-record]')
-            if (sample) {
-              const style = window.getComputedStyle(sample)
-              markSample = {
-                text: (sample.textContent || '').slice(0, 20),
-                token: sample.getAttribute('data-si-style'),
-                background: style.backgroundColor,
-                decoration: style.textDecorationLine,
-                color: style.color,
-              }
-            }
-          } catch {
-            markSample = null
-          }
           try {
             fetch(API + '/diag', {
               method: 'POST',
               headers: { 'content-type': 'application/json' },
               body: JSON.stringify({
                 at: Date.now(),
-                client: 'sr-save-2',
-                sessionId: currentSessionId,
+                client: 'sr-1.2.0',
                 records: records.length,
                 marks: lastMarkStats.marks,
-                lastApplyAt: lastMarkStats.at,
                 nodeKeys: document.querySelectorAll('[data-chat-flow] [data-chat-node-key]').length,
                 sources: document.querySelectorAll('[data-chat-flow] [data-text-interaction-source]').length,
-                markSample: markSample,
               }),
             }).catch(() => {})
           } catch {

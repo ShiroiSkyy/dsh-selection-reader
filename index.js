@@ -172,6 +172,7 @@ async function callCustomChat(options) {
       signal: controller.signal,
     })
     const raw = await response.text()
+    if (raw.length > 2 * 1024 * 1024) throw new Error('接口返回内容过大')
     let data = null
     try {
       data = JSON.parse(raw)
@@ -208,6 +209,22 @@ export function apply(ctx) {
     disposers.push(ctx.webServer.register(route))
   }
 
+  /**
+   * 只接受同源页面发起的 JSON 请求：拒绝跨站 Origin 和非 JSON 的 POST，
+   * 避免本机浏览器里的其他网站通过 CSRF 调用解读接口或把它当代理。
+   * 没有 Origin 的请求（命令行、同机脚本）放行。
+   */
+  function sameOriginJson(req) {
+    const origin = req.headers.origin
+    const host = req.headers.host || '127.0.0.1'
+    if (origin && origin !== 'http://' + host && origin !== 'https://' + host) return false
+    if (req.method === 'POST') {
+      const type = String(req.headers['content-type'] || '')
+      if (type.indexOf('application/json') === -1) return false
+    }
+    return true
+  }
+
   function route(method, path, handler) {
     claim({
       kind: 'exact',
@@ -216,6 +233,10 @@ export function apply(ctx) {
         const origin = `http://${req.headers.host || '127.0.0.1'}`
         const url = new URL(req.url || '/', origin)
         const run = async () => {
+          if (!sameOriginJson(req)) {
+            sendJson(res, 403, errorPayload(new Error('拒绝跨站或非 JSON 请求'), 'forbidden'))
+            return
+          }
           if (req.method !== method) {
             sendJson(res, 405, errorPayload(new Error(`只支持 ${method} ${path}`), 'method-not-allowed'))
             return
@@ -300,6 +321,10 @@ export function apply(ctx) {
     path: `${API}/diag`,
     handler: (req, res) => {
       const run = async () => {
+        if (!sameOriginJson(req)) {
+          sendJson(res, 403, errorPayload(new Error('拒绝跨站或非 JSON 请求'), 'forbidden'))
+          return
+        }
         if (req.method === 'POST') {
           const body = await readJsonBody(req)
           lastDiag = { at: Date.now(), data: body && typeof body === 'object' ? body : null }
