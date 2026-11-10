@@ -964,7 +964,6 @@ window.__ModuleLoader__.load({
       'settings.clear': '清空历史',
       'settings.clearConfirm': '确认清空',
       'settings.cleared': '历史已清空',
-      'settings.autosave': '修改即时生效，无需保存',
       'settings.save': '保存设置',
       'settings.revert': '撤销修改',
       'settings.saved': '设置已保存',
